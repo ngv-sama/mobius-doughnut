@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 
 export default function MobiusStrip() {
-  const canvasRef = useRef<HTMLPreElement>(null);
+  const canvasRef = useRef<HTMLDivElement>(null);
   const [dimensions, setDimensions] = useState({ width: 80, height: 40 });
 
   useEffect(() => {
@@ -27,13 +27,14 @@ export default function MobiusStrip() {
     let angleX = 0;
     let angleY = 0;
     let angleZ = 0;
+    let colorOffset = 0;
 
     const ASCII_CHARS = " .'`^\",:;Il!i><~+_-?][}{1)(|\\/tfjrxnuvczXYUJCLQ0OZmwqpdbkhao*#MW&8%B@$";
     
     const render = () => {
-      const buffer: string[][] = Array(height)
+      const buffer: { char: string; hue: number }[][] = Array(height)
         .fill(null)
-        .map(() => Array(width).fill(" "));
+        .map(() => Array(width).fill(null).map(() => ({ char: " ", hue: 0 })));
       const zBuffer: number[][] = Array(height)
         .fill(null)
         .map(() => Array(width).fill(-Infinity));
@@ -97,17 +98,37 @@ export default function MobiusStrip() {
               const charIndex = Math.floor(
                 brightness * (ASCII_CHARS.length - 1)
               );
-              buffer[screenY][screenX] = ASCII_CHARS[charIndex];
+              
+              const hue = ((u / (Math.PI * 2)) * 360 + colorOffset) % 360;
+              
+              buffer[screenY][screenX] = {
+                char: ASCII_CHARS[charIndex],
+                hue: hue
+              };
             }
           }
         }
       }
 
-      canvas.textContent = buffer.map((row) => row.join("")).join("\n");
+      const html = buffer.map((row) => 
+        '<div style="height: 1.2em; line-height: 1.2;">' +
+        row.map(cell => {
+          if (cell.char === " ") {
+            return '<span> </span>';
+          }
+          const saturation = 100;
+          const lightness = 60;
+          return `<span style="color: hsl(${cell.hue}, ${saturation}%, ${lightness}%); text-shadow: 0 0 10px hsla(${cell.hue}, ${saturation}%, ${lightness}%, 0.8);">${cell.char}</span>`;
+        }).join('') +
+        '</div>'
+      ).join('');
+
+      canvas.innerHTML = html;
 
       angleX += 0.02;
       angleY += 0.03;
       angleZ += 0.01;
+      colorOffset += 2;
 
       animationId = requestAnimationFrame(render);
     };
@@ -122,12 +143,9 @@ export default function MobiusStrip() {
   }, [dimensions]);
 
   return (
-    <pre
+    <div
       ref={canvasRef}
-      className="font-mono text-[10px] leading-[1.2] text-green-400 whitespace-pre"
-      style={{
-        textShadow: "0 0 5px rgba(74, 222, 128, 0.5)",
-      }}
+      className="font-mono text-[10px] leading-[1.2] whitespace-pre"
     />
   );
 }
