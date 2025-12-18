@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 
 export default function MobiusStrip() {
-  const canvasRef = useRef<HTMLPreElement>(null);
+  const canvasRef = useRef<HTMLDivElement>(null);
   const [dimensions, setDimensions] = useState({ width: 80, height: 40 });
 
   useEffect(() => {
@@ -24,54 +24,61 @@ export default function MobiusStrip() {
 
     const { width, height } = dimensions;
     let animationId: number;
-    let angleX = 0;
-    let angleY = 0;
-    let angleZ = 0;
+    let angle = 0;
+    let colorOffset = 0;
 
-    const ASCII_CHARS = " .'`^\",:;Il!i><~+_-?][}{1)(|\\/tfjrxnuvczXYUJCLQ0OZmwqpdbkhao*#MW&8%B@$";
-    
+    const ASCII_CHARS = ['█', '▓', '▒', '░', '▪', '·', ' '];
+
+    const hslToRgb = (h: number, s: number, l: number): string => {
+      const c = (1 - Math.abs(2 * l - 1)) * s;
+      const x = c * (1 - Math.abs((h / 60) % 2 - 1));
+      const m = l - c / 2;
+      let r: number, g: number, b: number;
+      if (h < 60) { r = c; g = x; b = 0; }
+      else if (h < 120) { r = x; g = c; b = 0; }
+      else if (h < 180) { r = 0; g = c; b = x; }
+      else if (h < 240) { r = 0; g = x; b = c; }
+      else if (h < 300) { r = x; g = 0; b = c; }
+      else { r = c; g = 0; b = x; }
+      return `rgb(${Math.round((r + m) * 255)}, ${Math.round((g + m) * 255)}, ${Math.round((b + m) * 255)})`;
+    };
+
     const render = () => {
       const buffer: string[][] = Array(height)
         .fill(null)
         .map(() => Array(width).fill(" "));
+      const colorBuffer: string[][] = Array(height)
+        .fill(null)
+        .map(() => Array(width).fill(""));
       const zBuffer: number[][] = Array(height)
         .fill(null)
         .map(() => Array(width).fill(-Infinity));
 
-      const cosX = Math.cos(angleX);
-      const sinX = Math.sin(angleX);
-      const cosY = Math.cos(angleY);
-      const sinY = Math.sin(angleY);
-      const cosZ = Math.cos(angleZ);
-      const sinZ = Math.sin(angleZ);
+      // Clockwise rotation around Y axis (negative angle)
+      for (let u = 0; u < Math.PI * 2; u += 0.05) {
+        for (let v = -0.5; v < 0.5; v += 0.08) {
+          const R = 3;
+          const twist = u / 2;
 
-      for (let u = 0; u < Math.PI * 2; u += 0.07) {
-        for (let v = -0.3; v < 0.3; v += 0.05) {
-          const R = 2;
-          const r = 0.5;
-          
-          const x = (R + v * Math.cos(u / 2)) * Math.cos(u);
-          const y = (R + v * Math.cos(u / 2)) * Math.sin(u);
-          const z = v * Math.sin(u / 2);
+          // Möbius strip parametric equations
+          const px = (R + v * Math.cos(twist)) * Math.cos(u);
+          const py = (R + v * Math.cos(twist)) * Math.sin(u);
+          const pz = v * Math.sin(twist);
 
-          let x1 = x;
-          let y1 = cosX * y - sinX * z;
-          let z1 = sinX * y + cosX * z;
+          // Clockwise rotation around Y axis (negative angle for clockwise)
+          const cosT = Math.cos(-angle);
+          const sinT = Math.sin(-angle);
+          const rx = px * cosT - pz * sinT;
+          const ry = py;
+          const rz = px * sinT + pz * cosT;
 
-          let x2 = cosY * x1 + sinY * z1;
-          let y2 = y1;
-          let z2 = -sinY * x1 + cosY * z1;
-
-          let x3 = cosZ * x2 - sinZ * y2;
-          let y3 = sinZ * x2 + cosZ * y2;
-          let z3 = z2;
-
+          // Project to 2D with perspective
           const scale = 8;
-          const distance = 5;
-          const perspective = distance / (distance + z3);
+          const distance = 10;
+          const perspective = distance / (distance + rz);
 
-          const screenX = Math.floor(width / 2 + x3 * scale * perspective);
-          const screenY = Math.floor(height / 2 - y3 * scale * perspective * 0.5);
+          const screenX = Math.floor(width / 2 + rx * scale * perspective);
+          const screenY = Math.floor(height / 2 - ry * scale * perspective * 0.5);
 
           if (
             screenX >= 0 &&
@@ -79,35 +86,42 @@ export default function MobiusStrip() {
             screenY >= 0 &&
             screenY < height
           ) {
-            if (z3 > zBuffer[screenY][screenX]) {
-              zBuffer[screenY][screenX] = z3;
+            if (rz > zBuffer[screenY][screenX]) {
+              zBuffer[screenY][screenX] = rz;
 
-              const nx = Math.cos(u / 2) * Math.cos(u);
-              const ny = Math.cos(u / 2) * Math.sin(u);
-              const nz = Math.sin(u / 2);
+              // Calculate rainbow color based on position along the strip
+              // Adding colorOffset creates the rotating rainbow effect
+              const hue = ((u / (Math.PI * 2)) * 360 + colorOffset) % 360;
+              const brightness = (rz + 4) / 8;
+              const saturation = 0.9;
+              const lightness = Math.max(0.3, Math.min(0.7, brightness * 0.7));
 
-              const lightX = 0;
-              const lightY = 0;
-              const lightZ = 1;
+              colorBuffer[screenY][screenX] = hslToRgb(hue, saturation, lightness);
 
-              const luminance =
-                nx * lightX + ny * lightY + nz * lightZ;
-              const brightness = Math.max(0, luminance);
-
-              const charIndex = Math.floor(
-                brightness * (ASCII_CHARS.length - 1)
-              );
+              // Character based on depth
+              const depth = Math.floor((rz + 3.5) * 1.5);
+              const charIndex = Math.max(0, Math.min(ASCII_CHARS.length - 1, depth));
               buffer[screenY][screenX] = ASCII_CHARS[charIndex];
             }
           }
         }
       }
 
-      canvas.textContent = buffer.map((row) => row.join("")).join("\n");
+      // Convert to HTML with colored spans
+      let result = '';
+      for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+          const char = buffer[y][x];
+          const color = colorBuffer[y][x] || 'rgb(100,100,100)';
+          result += `<span style="color:${color}">${char}</span>`;
+        }
+        result += '\n';
+      }
 
-      angleX += 0.02;
-      angleY += 0.03;
-      angleZ += 0.01;
+      canvas.innerHTML = result;
+
+      angle += 0.04;
+      colorOffset += 2; // Rotate the rainbow colors clockwise
 
       animationId = requestAnimationFrame(render);
     };
@@ -122,12 +136,9 @@ export default function MobiusStrip() {
   }, [dimensions]);
 
   return (
-    <pre
+    <div
       ref={canvasRef}
-      className="font-mono text-[10px] leading-[1.2] text-green-400 whitespace-pre"
-      style={{
-        textShadow: "0 0 5px rgba(74, 222, 128, 0.5)",
-      }}
+      className="font-mono text-[10px] leading-[1.2] whitespace-pre"
     />
   );
 }
