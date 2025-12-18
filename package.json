@@ -1,0 +1,10 @@
+{
+  "name": "ascii-mobius-strip",
+  "version": "1.0.0",
+  "description": "An animated ASCII Möbius strip",
+  "scripts": {
+    "start": "echo 'Open index.html in your browser'"
+  },
+  "author": "",
+  "license": "MIT"
+}

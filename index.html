@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ASCII Möbius Strip</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #000;
+            color: #0f0;
+            font-family: monospace;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            overflow: hidden;
+        }
+        #mobius {
+            font-size: 14px;
+            line-height: 1;
+            white-space: pre;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <pre id="mobius"></pre>
+    <script>
+        const mobiusElement = document.getElementById('mobius');
+        let angle = 0;
+
+        function drawMobius(t) {
+            const width = 80;
+            const height = 40;
+            const chars = ['#', '@', '*', '+', '-', '.', ' '];
+            let output = [];
+
+            // Create the Möbius strip
+            for (let y = 0; y < height; y++) {
+                let line = '';
+                for (let x = 0; x < width; x++) {
+                    // Map to parametric coordinates
+                    const u = (x / width) * 2 * Math.PI;
+                    const v = ((y / height) - 0.5) * 2;
+
+                    // Möbius strip parametric equations with rotation
+                    const R = 3;
+                    const twist = u / 2;
+
+                    // 3D coordinates
+                    const px = (R + v * Math.cos(twist)) * Math.cos(u);
+                    const py = (R + v * Math.cos(twist)) * Math.sin(u);
+                    const pz = v * Math.sin(twist);
+
+                    // Rotate around Y axis
+                    const cosT = Math.cos(t);
+                    const sinT = Math.sin(t);
+                    const rx = px * cosT - pz * sinT;
+                    const ry = py;
+                    const rz = px * sinT + pz * cosT;
+
+                    // Project to 2D
+                    const perspective = 10 / (10 + rz);
+                    const screenX = Math.round(width/2 + rx * perspective * 8);
+                    const screenY = Math.round(height/2 + ry * perspective * 4);
+
+                    // Determine character based on depth
+                    if (screenX >= 0 && screenX < width && screenY >= 0 && screenY < height) {
+                        const depth = Math.floor((rz + 3) * 2);
+                        const charIndex = Math.max(0, Math.min(chars.length - 1, depth));
+
+                        // Check if this position is visible (closer to camera)
+                        if (!output[screenY]) output[screenY] = new Array(width).fill(' ');
+                        if (!output[screenY][screenX] || charIndex < chars.indexOf(output[screenY][screenX])) {
+                            output[screenY][screenX] = chars[charIndex];
+                        }
+                    }
+                }
+            }
+
+            // Convert to string
+            let result = '';
+            for (let y = 0; y < height; y++) {
+                if (output[y]) {
+                    result += output[y].join('') + '\n';
+                } else {
+                    result += ' '.repeat(width) + '\n';
+                }
+            }
+
+            return result;
+        }
+
+        function animate() {
+            angle += 0.02;
+            mobiusElement.textContent = drawMobius(angle);
+            requestAnimationFrame(animate);
+        }
+
+        animate();
+    </script>
+</body>
+</html>
