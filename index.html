@@ -3,13 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ASCII Möbius Strip</title>
+    <title>Rainbow Möbius Strip</title>
     <style>
         body {
             margin: 0;
             padding: 0;
             background-color: #000;
-            color: #0f0;
             font-family: monospace;
             display: flex;
             justify-content: center;
@@ -23,29 +22,49 @@
             white-space: pre;
             text-align: center;
         }
+        .char {
+            display: inline-block;
+        }
     </style>
 </head>
 <body>
-    <pre id="mobius"></pre>
+    <div id="mobius"></div>
     <script>
         const mobiusElement = document.getElementById('mobius');
         let angle = 0;
+        let colorOffset = 0;
+
+        function hslToRgb(h, s, l) {
+            const c = (1 - Math.abs(2 * l - 1)) * s;
+            const x = c * (1 - Math.abs((h / 60) % 2 - 1));
+            const m = l - c / 2;
+            let r, g, b;
+            if (h < 60) { r = c; g = x; b = 0; }
+            else if (h < 120) { r = x; g = c; b = 0; }
+            else if (h < 180) { r = 0; g = c; b = x; }
+            else if (h < 240) { r = 0; g = x; b = c; }
+            else if (h < 300) { r = x; g = 0; b = c; }
+            else { r = c; g = 0; b = x; }
+            return `rgb(${Math.round((r + m) * 255)}, ${Math.round((g + m) * 255)}, ${Math.round((b + m) * 255)})`;
+        }
 
         function drawMobius(t) {
             const width = 80;
             const height = 40;
-            const chars = ['#', '@', '*', '+', '-', '.', ' '];
+            const chars = ['█', '▓', '▒', '░', '▪', '·', ' '];
             let output = [];
+            let colors = [];
+            let zBuffer = [];
 
-            // Create the Möbius strip
             for (let y = 0; y < height; y++) {
-                let line = '';
-                for (let x = 0; x < width; x++) {
-                    // Map to parametric coordinates
-                    const u = (x / width) * 2 * Math.PI;
-                    const v = ((y / height) - 0.5) * 2;
+                output[y] = new Array(width).fill(' ');
+                colors[y] = new Array(width).fill('');
+                zBuffer[y] = new Array(width).fill(-Infinity);
+            }
 
-                    // Möbius strip parametric equations with rotation
+            // Create the Möbius strip with parametric equations
+            for (let u = 0; u < Math.PI * 2; u += 0.05) {
+                for (let v = -0.5; v < 0.5; v += 0.08) {
                     const R = 3;
                     const twist = u / 2;
 
@@ -54,9 +73,9 @@
                     const py = (R + v * Math.cos(twist)) * Math.sin(u);
                     const pz = v * Math.sin(twist);
 
-                    // Rotate around Y axis
-                    const cosT = Math.cos(t);
-                    const sinT = Math.sin(t);
+                    // Clockwise rotation around Y axis (negative angle for clockwise)
+                    const cosT = Math.cos(-t);
+                    const sinT = Math.sin(-t);
                     const rx = px * cosT - pz * sinT;
                     const ry = py;
                     const rz = px * sinT + pz * cosT;
@@ -66,36 +85,46 @@
                     const screenX = Math.round(width/2 + rx * perspective * 8);
                     const screenY = Math.round(height/2 + ry * perspective * 4);
 
-                    // Determine character based on depth
                     if (screenX >= 0 && screenX < width && screenY >= 0 && screenY < height) {
-                        const depth = Math.floor((rz + 3) * 2);
-                        const charIndex = Math.max(0, Math.min(chars.length - 1, depth));
+                        if (rz > zBuffer[screenY][screenX]) {
+                            zBuffer[screenY][screenX] = rz;
 
-                        // Check if this position is visible (closer to camera)
-                        if (!output[screenY]) output[screenY] = new Array(width).fill(' ');
-                        if (!output[screenY][screenX] || charIndex < chars.indexOf(output[screenY][screenX])) {
+                            // Calculate rainbow color based on position along the strip
+                            // Adding colorOffset creates the rotating rainbow effect
+                            const hue = ((u / (Math.PI * 2)) * 360 + colorOffset) % 360;
+                            const brightness = (rz + 4) / 8;
+                            const saturation = 0.9;
+                            const lightness = Math.max(0.3, Math.min(0.7, brightness * 0.7));
+
+                            colors[screenY][screenX] = hslToRgb(hue, saturation, lightness);
+
+                            // Character based on depth
+                            const depth = Math.floor((rz + 3.5) * 1.5);
+                            const charIndex = Math.max(0, Math.min(chars.length - 1, depth));
                             output[screenY][screenX] = chars[charIndex];
                         }
                     }
                 }
             }
 
-            // Convert to string
+            // Convert to HTML with colored spans
             let result = '';
             for (let y = 0; y < height; y++) {
-                if (output[y]) {
-                    result += output[y].join('') + '\n';
-                } else {
-                    result += ' '.repeat(width) + '\n';
+                for (let x = 0; x < width; x++) {
+                    const char = output[y][x];
+                    const color = colors[y][x] || 'rgb(100,100,100)';
+                    result += `<span class="char" style="color:${color}">${char}</span>`;
                 }
+                result += '\n';
             }
 
             return result;
         }
 
         function animate() {
-            angle += 0.02;
-            mobiusElement.textContent = drawMobius(angle);
+            angle += 0.04;
+            colorOffset += 2; // Rotate the rainbow colors
+            mobiusElement.innerHTML = drawMobius(angle);
             requestAnimationFrame(animate);
         }
 

@@ -29,8 +29,6 @@ export default function MobiusStrip() {
     let angleZ = 0;
     let colorOffset = 0;
 
-    const ASCII_CHARS = " .'`^\",:;Il!i><~+_-?][}{1)(|\\/tfjrxnuvczXYUJCLQ0OZmwqpdbkhao*#MW&8%B@$";
-    
     const render = () => {
       const buffer: { char: string; hue: number }[][] = Array(height)
         .fill(null)
@@ -39,40 +37,31 @@ export default function MobiusStrip() {
         .fill(null)
         .map(() => Array(width).fill(-Infinity));
 
-      const cosX = Math.cos(angleX);
-      const sinX = Math.sin(angleX);
-      const cosY = Math.cos(angleY);
-      const sinY = Math.sin(angleY);
-      const cosZ = Math.cos(angleZ);
-      const sinZ = Math.sin(angleZ);
+      // Clockwise rotation around Y axis (negative angle)
+      for (let u = 0; u < Math.PI * 2; u += 0.05) {
+        for (let v = -0.5; v < 0.5; v += 0.08) {
+          const R = 3;
+          const twist = u / 2;
 
-      for (let u = 0; u < Math.PI * 2; u += 0.07) {
-        for (let v = -0.3; v < 0.3; v += 0.05) {
-          const R = 2;
-          const r = 0.5;
-          
-          const x = (R + v * Math.cos(u / 2)) * Math.cos(u);
-          const y = (R + v * Math.cos(u / 2)) * Math.sin(u);
-          const z = v * Math.sin(u / 2);
+          // Möbius strip parametric equations
+          const px = (R + v * Math.cos(twist)) * Math.cos(u);
+          const py = (R + v * Math.cos(twist)) * Math.sin(u);
+          const pz = v * Math.sin(twist);
 
-          let x1 = x;
-          let y1 = cosX * y - sinX * z;
-          let z1 = sinX * y + cosX * z;
+          // Clockwise rotation around Y axis (negative angle for clockwise)
+          const cosT = Math.cos(-angle);
+          const sinT = Math.sin(-angle);
+          const rx = px * cosT - pz * sinT;
+          const ry = py;
+          const rz = px * sinT + pz * cosT;
 
-          let x2 = cosY * x1 + sinY * z1;
-          let y2 = y1;
-          let z2 = -sinY * x1 + cosY * z1;
-
-          let x3 = cosZ * x2 - sinZ * y2;
-          let y3 = sinZ * x2 + cosZ * y2;
-          let z3 = z2;
-
+          // Project to 2D with perspective
           const scale = 8;
-          const distance = 5;
-          const perspective = distance / (distance + z3);
+          const distance = 10;
+          const perspective = distance / (distance + rz);
 
-          const screenX = Math.floor(width / 2 + x3 * scale * perspective);
-          const screenY = Math.floor(height / 2 - y3 * scale * perspective * 0.5);
+          const screenX = Math.floor(width / 2 + rx * scale * perspective);
+          const screenY = Math.floor(height / 2 - ry * scale * perspective * 0.5);
 
           if (
             screenX >= 0 &&
@@ -80,20 +69,17 @@ export default function MobiusStrip() {
             screenY >= 0 &&
             screenY < height
           ) {
-            if (z3 > zBuffer[screenY][screenX]) {
-              zBuffer[screenY][screenX] = z3;
+            if (rz > zBuffer[screenY][screenX]) {
+              zBuffer[screenY][screenX] = rz;
 
-              const nx = Math.cos(u / 2) * Math.cos(u);
-              const ny = Math.cos(u / 2) * Math.sin(u);
-              const nz = Math.sin(u / 2);
+              // Calculate rainbow color based on position along the strip
+              // Adding colorOffset creates the rotating rainbow effect
+              const hue = ((u / (Math.PI * 2)) * 360 + colorOffset) % 360;
+              const brightness = (rz + 4) / 8;
+              const saturation = 0.9;
+              const lightness = Math.max(0.3, Math.min(0.7, brightness * 0.7));
 
-              const lightX = 0;
-              const lightY = 0;
-              const lightZ = 1;
-
-              const luminance =
-                nx * lightX + ny * lightY + nz * lightZ;
-              const brightness = Math.max(0, luminance);
+              colorBuffer[screenY][screenX] = hslToRgb(hue, saturation, lightness);
 
               const charIndex = Math.floor(
                 brightness * (ASCII_CHARS.length - 1)
